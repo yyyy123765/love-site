@@ -4,25 +4,99 @@ const $$ = s => [...document.querySelectorAll(s)];
 const esc = s => String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const uid = () => 'a' + Date.now() + Math.floor(Math.random()*1000);
 
+/* ---------- 本地存储（回退模式 + 主题/音乐偏好） ---------- */
 const store = {
   get(k, d){ try{ const v = localStorage.getItem('love2_'+k); return v==null ? d : JSON.parse(v); }catch(e){ return d; } },
   set(k, v){ try{ localStorage.setItem('love2_'+k, JSON.stringify(v)); }catch(e){ alert('浏览器本地存储已满，请删除一些大照片或减小图片尺寸'); } }
 };
 
-/* ---------- 状态 ---------- */
-let state = Object.assign({ nick1:INITIAL.couple.nick1, nick2:INITIAL.couple.nick2, startDate:INITIAL.couple.startDate, match:INITIAL.couple.matchPercent, onboarded:false }, store.get('state', {}));
-function saveState(){ store.set('state', { nick1:state.nick1, nick2:state.nick2, startDate:state.startDate, match:state.match, onboarded:state.onboarded }); }
+/* ---------- 后端 Supabase（配置了密钥则启用云端共享） ---------- */
+const SC = (window.SUPABASE_CONFIG || {});
+const supabase = (SC.url && SC.anonKey && window.supabase) ? window.supabase.createClient(SC.url, SC.anonKey) : null;
+const cloud = !!supabase;
+async function q(promise){ const { data, error } = await promise; if(error){ throw error; } return data; }
 
-let addedMeetings = store.get('meetings', []);
-let addedBouquets = store.get('bouquets', []);
-let addedGallery = store.get('gallery', []);
-let moments = store.get('moments', []);
+/* ---------- 状态 ---------- */
+let state = { nick1:INITIAL.couple.nick1, nick2:INITIAL.couple.nick2, startDate:INITIAL.couple.startDate, match:INITIAL.couple.matchPercent, onboarded:false };
+let addedMeetings=[], addedBouquets=[], addedGallery=[], moments=[];
 const meetings = () => INITIAL.meetings.concat(addedMeetings);
 const bouquets = () => INITIAL.bouquets.concat(addedBouquets);
 const gallery = () => INITIAL.gallery.concat(addedGallery);
 
 const fmtDate = d => d ? String(d).replace(/-/g, '.') : '';
 const moodByK = k => INITIAL.moods.find(m => m.k === k);
+
+/* ---------- 数据加载 ---------- */
+async function loadData(){
+  if(cloud){
+    const s = await q(supabase.from('site_settings').select('*').eq('id',1).maybeSingle());
+    if(s){
+      state.nick1 = s.nick1 ?? state.nick1;
+      state.nick2 = s.nick2 ?? state.nick2;
+      state.startDate = s.start_date ?? state.startDate;
+      state.match = s.match_percent ?? state.match;
+      state.onboarded = true;
+    }
+    addedMeetings = (await q(supabase.from('meetings').select('*').order('id',{ascending:true})) || []).map(r=>({ id:'a'+r.id, date:r.date, title:r.title, text:r.text, photos:r.photos||[] }));
+    addedBouquets = (await q(supabase.from('bouquets').select('*').order('id',{ascending:true})) || []).map(r=>({ id:'a'+r.id, date:r.date, note:r.note, photo:r.photo }));
+    addedGallery = (await q(supabase.from('gallery').select('*').order('id',{ascending:true})) || []).map(r=>({ id:'a'+r.id, src:r.src, caption:r.caption }));
+    moments = (await q(supabase.from('moments').select('*').order('id',{ascending:true})) || []).map(r=>({ id:'a'+r.id, mood:r.mood, face:r.face, text:r.text, photo:r.photo, time:r.time, by:r.who }));
+  } else {
+    state = Object.assign(state, store.get('state', {}));
+    addedMeetings = store.get('meetings', []);
+    addedBouquets = store.get('bouquets', []);
+    addedGallery = store.get('gallery', []);
+    moments = store.get('moments', []);
+  }
+}
+
+/* ---------- 持久化（云端 / 本地） ---------- */
+async function persistSettings(){
+  if(cloud){ await q(supabase.from('site_settings').upsert({ id:1, nick1:state.nick1, nick2:state.nick2, start_date:state.startDate, match_percent:state.match })); }
+  else { store.set('state', { nick1:state.nick1, nick2:state.nick2, startDate:state.startDate, match:state.match, onboarded:state.onboarded }); }
+}
+async function addMeeting(item){
+  if(cloud){ const r = await q(supabase.from('meetings').insert({ date:item.date, title:item.title, text:item.text, photos:item.photos }).select().single()); item.id = 'a'+r.id; addedMeetings.push(item); }
+  else { item.id = uid(); addedMeetings.push(item); store.set('meetings', addedMeetings); }
+}
+async function removeMeeting(id){
+  if(cloud){ await q(supabase.from('meetings').delete().eq('id', Number(id.slice(1)))); }
+  addedMeetings = addedMeetings.filter(x => x.id !== id);
+  if(!cloud) store.set('meetings', addedMeetings);
+}
+async function addBouquet(item){
+  if(cloud){ const r = await q(supabase.from('bouquets').insert({ date:item.date, note:item.note, photo:item.photo }).select().single()); item.id = 'a'+r.id; addedBouquets.push(item); }
+  else { item.id = uid(); addedBouquets.push(item); store.set('bouquets', addedBouquets); }
+}
+async function removeBouquet(id){
+  if(cloud){ await q(supabase.from('bouquets').delete().eq('id', Number(id.slice(1)))); }
+  addedBouquets = addedBouquets.filter(x => x.id !== id);
+  if(!cloud) store.set('bouquets', addedBouquets);
+}
+async function addGalleryItem(item){
+  if(cloud){ const r = await q(supabase.from('gallery').insert({ src:item.src, caption:item.caption }).select().single()); item.id = 'a'+r.id; addedGallery.push(item); }
+  else { item.id = uid(); addedGallery.push(item); store.set('gallery', addedGallery); }
+}
+async function removeGalleryItem(id){
+  if(cloud){ await q(supabase.from('gallery').delete().eq('id', Number(id.slice(1)))); }
+  addedGallery = addedGallery.filter(x => x.id !== id);
+  if(!cloud) store.set('gallery', addedGallery);
+}
+async function updateGalleryNote(id, caption){
+  const g = addedGallery.find(x => x.id === id); if(!g) return;
+  if(cloud){ await q(supabase.from('gallery').update({ caption }).eq('id', Number(id.slice(1)))); }
+  g.caption = caption;
+  if(!cloud) store.set('gallery', addedGallery);
+}
+async function addMoment(item){
+  if(cloud){ const r = await q(supabase.from('moments').insert({ mood:item.mood, face:item.face, text:item.text, photo:item.photo, who:item.by, time:item.time }).select().single()); item.id = 'a'+r.id; moments.push(item); }
+  else { item.id = uid(); moments.push(item); store.set('moments', moments); }
+}
+async function removeMoment(id){
+  if(cloud){ await q(supabase.from('moments').delete().eq('id', Number(id.slice(1)))); }
+  moments = moments.filter(x => x.id !== id);
+  if(!cloud) store.set('moments', moments);
+}
 
 /* ---------- 主题 ---------- */
 function applyTheme(t){ document.documentElement.dataset.theme = t; $('#themeBtn').textContent = t==='dark' ? '☀️' : '🌙'; store.set('theme', t); }
@@ -50,7 +124,6 @@ function tick(){
   $('#tM').textContent = String(m).padStart(2,'0'); $('#tS').textContent = String(s).padStart(2,'0');
   $('#totalDays').textContent = d;
 }
-setInterval(tick, 1000); tick();
 
 /* ---------- 爱心 + 花瓣 ---------- */
 const cvs = $('#hearts'), ctx = cvs.getContext('2d');
@@ -104,7 +177,7 @@ function renderMeetings(){
       <h3 class="display">${esc(m.title)}</h3>
       <p>${esc(m.text)}</p>
       ${photos.length ? '<div class="mt-photos">' + photos.map((p,i)=>`<img src="${p}" data-i="${i}" alt="">`).join('') + '</div>' : ''}`;
-    if(isAdd) el.querySelector('.del-x').onclick = () => { addedMeetings = addedMeetings.filter(x => x.id!==m.id); store.set('meetings', addedMeetings); renderMeetings(); };
+    if(isAdd) el.querySelector('.del-x').onclick = async () => { try{ await removeMeeting(m.id); renderMeetings(); }catch(e){ alert('删除失败，请检查网络'); } };
     el.querySelectorAll('.mt-photos img').forEach(img => { img.onclick = () => openLightbox(photos.map(p=>({src:p, caption:m.title})), +img.dataset.i); });
     box.appendChild(el);
   });
@@ -112,14 +185,15 @@ function renderMeetings(){
 const meetingPhotos = [];
 $('#addMeetingBtn').onclick = () => { meetingPhotos.length=0; $('#mHint').textContent=''; $('#meetingMask').classList.add('show'); };
 $('#mCancel').onclick = () => $('#meetingMask').classList.remove('show');
-$('#mPhotos').addEventListener('change', async e => { const files=[...e.target.files]; if(!files.length) return; $('#mHint').textContent='处理中…'; const arr=await filesToDataURLs(files,1280,.82); meetingPhotos.push(...arr); $('#mHint').textContent='已选 '+meetingPhotos.length+' 张'; e.target.value=''; });
-$('#mSave').onclick = () => {
+$('#mPhotos').addEventListener('change', async e => { const files=[...e.target.files]; if(!files.length) return; $('#mHint').textContent='处理中…'; const arr=await filesToDataURLs(files,1280,.8); meetingPhotos.push(...arr); $('#mHint').textContent='已选 '+meetingPhotos.length+' 张'; e.target.value=''; });
+$('#mSave').onclick = async () => {
   const date=$('#mDate').value, title=$('#mTitle').value.trim(), text=$('#mText').value.trim();
   if(!date && !title && !text && !meetingPhotos.length) return;
-  addedMeetings.push({ id:uid(), date, title: title||'见面记录', text, photos: meetingPhotos.slice() });
-  store.set('meetings', addedMeetings);
-  $('#mDate').value=''; $('#mTitle').value=''; $('#mText').value=''; meetingPhotos.length=0; $('#mHint').textContent='';
-  $('#meetingMask').classList.remove('show'); renderMeetings();
+  try{
+    await addMeeting({ date, title: title||'见面记录', text, photos: meetingPhotos.slice() });
+    $('#mDate').value=''; $('#mTitle').value=''; $('#mText').value=''; meetingPhotos.length=0; $('#mHint').textContent='';
+    $('#meetingMask').classList.remove('show'); renderMeetings();
+  }catch(e){ alert('保存失败，请检查网络'); }
 };
 
 /* ---------- 送你的花 ---------- */
@@ -132,23 +206,24 @@ function renderBouquets(){
       ${isAdd ? '<button class="del-x">×</button>' : ''}
       <div class="info"><div class="note">${esc(b.note||'')}</div>${b.date ? `<div class="date">${esc(fmtDate(b.date))}</div>` : ''}</div>`;
     el.querySelector('img').onclick = () => openLightbox([{src:b.photo, caption:b.note||''}], 0);
-    if(isAdd) el.querySelector('.del-x').onclick = () => { addedBouquets = addedBouquets.filter(x => x.id!==b.id); store.set('bouquets', addedBouquets); renderBouquets(); };
+    if(isAdd) el.querySelector('.del-x').onclick = async () => { try{ await removeBouquet(b.id); renderBouquets(); }catch(e){ alert('删除失败，请检查网络'); } };
     box.appendChild(el);
   });
 }
 let bouquetPhotoData = null;
 $('#addBouquetBtn').onclick = () => $('#bouquetMask').classList.add('show');
 $('#bCancel').onclick = () => $('#bouquetMask').classList.remove('show');
-$('#bPhoto').addEventListener('change', async e => { const f=e.target.files[0]; if(!f) return; bouquetPhotoData = await fileToDataURL(f,1280,.85); e.target.value=''; });
-$('#bSave').onclick = () => {
+$('#bPhoto').addEventListener('change', async e => { const f=e.target.files[0]; if(!f) return; bouquetPhotoData = await fileToDataURL(f,1280,.82); e.target.value=''; });
+$('#bSave').onclick = async () => {
   if(!bouquetPhotoData){ alert('请先选择花的照片'); return; }
-  addedBouquets.push({ id:uid(), date:$('#bDate').value, note:$('#bNote').value.trim()||'一束花', photo:bouquetPhotoData });
-  store.set('bouquets', addedBouquets);
-  $('#bDate').value=''; $('#bNote').value=''; bouquetPhotoData=null;
-  $('#bouquetMask').classList.remove('show'); renderBouquets();
+  try{
+    await addBouquet({ date:$('#bDate').value, note:$('#bNote').value.trim()||'一束花', photo:bouquetPhotoData });
+    $('#bDate').value=''; $('#bNote').value=''; bouquetPhotoData=null;
+    $('#bouquetMask').classList.remove('show'); renderBouquets();
+  }catch(e){ alert('保存失败，请检查网络'); }
 };
 
-/* ---------- 有趣的瞬间（日常照片 + 备注） ---------- */
+/* ---------- 有趣的瞬间（照片 + 备注） ---------- */
 function renderGallery(){
   const box = $('#galleryGrid'); box.innerHTML='';
   gallery().forEach((g,i) => {
@@ -159,8 +234,8 @@ function renderGallery(){
       ${isAdd ? '<button class="del-x">×</button>' : ''}`;
     el.querySelector('img').onclick = () => openLightbox(gallery().map(x => ({src:x.src, caption:x.caption})), i);
     if(isAdd){
-      el.querySelector('.del-x').onclick = e => { e.stopPropagation(); addedGallery = addedGallery.filter(x => x.id!==g.id); store.set('gallery', addedGallery); renderGallery(); };
-      el.querySelector('.edit-note').onclick = e => { e.stopPropagation(); const n = prompt('备注：', g.caption||''); if(n!=null){ g.caption=n; store.set('gallery', addedGallery); renderGallery(); } };
+      el.querySelector('.del-x').onclick = async e => { e.stopPropagation(); try{ await removeGalleryItem(g.id); renderGallery(); }catch(err){ alert('删除失败'); } };
+      el.querySelector('.edit-note').onclick = async e => { e.stopPropagation(); const n = prompt('备注：', g.caption||''); if(n!=null){ try{ await updateGalleryNote(g.id, n); renderGallery(); }catch(err){ alert('保存失败'); } } };
     }
     box.appendChild(el);
   });
@@ -168,13 +243,14 @@ function renderGallery(){
 let galleryPhotoData = null;
 $('#addPhotoBtn').onclick = () => $('#galleryMask').classList.add('show');
 $('#gCancel').onclick = () => $('#galleryMask').classList.remove('show');
-$('#gPhoto').addEventListener('change', async e => { const f=e.target.files[0]; if(!f) return; galleryPhotoData = await fileToDataURL(f,1280,.85); e.target.value=''; });
-$('#gSave').onclick = () => {
+$('#gPhoto').addEventListener('change', async e => { const f=e.target.files[0]; if(!f) return; galleryPhotoData = await fileToDataURL(f,1280,.82); e.target.value=''; });
+$('#gSave').onclick = async () => {
   if(!galleryPhotoData){ alert('请先选择照片'); return; }
-  addedGallery.push({ id:uid(), src:galleryPhotoData, caption:$('#gNote').value.trim() });
-  store.set('gallery', addedGallery);
-  galleryPhotoData=null; $('#gNote').value='';
-  $('#galleryMask').classList.remove('show'); renderGallery();
+  try{
+    await addGalleryItem({ src:galleryPhotoData, caption:$('#gNote').value.trim() });
+    galleryPhotoData=null; $('#gNote').value='';
+    $('#galleryMask').classList.remove('show'); renderGallery();
+  }catch(e){ alert('保存失败，请检查网络'); }
 };
 
 /* ---------- 心情广场（颜文字） ---------- */
@@ -206,19 +282,19 @@ function renderMoments(){
       ${mm.photo ? `<img src="${mm.photo}" alt="">` : ''}
       <button class="del-x">×</button>`;
     if(mm.photo) el.querySelector('img').onclick = () => openLightbox([{src:mm.photo, caption:label}], 0);
-    el.querySelector('.del-x').onclick = () => { moments = moments.filter(x => x.id!==mm.id); store.set('moments', moments); renderMoments(); };
+    el.querySelector('.del-x').onclick = async () => { try{ await removeMoment(mm.id); renderMoments(); }catch(e){ alert('删除失败'); } };
     box.appendChild(el);
   });
 }
 $('#momentPhotoBtn').onclick = () => $('#momentFile').click();
-$('#momentFile').addEventListener('change', async e => { const f=e.target.files[0]; if(!f) return; momentPhoto = await fileToDataURL(f,1280,.82); $('#momentPhotoBtn').textContent='📷 已加照片 ✓'; e.target.value=''; });
-$('#momentSend').onclick = () => {
-  const text = $('#momentText').value.trim();
+$('#momentFile').addEventListener('change', async e => { const f=e.target.files[0]; if(!f) return; momentPhoto = await fileToDataURL(f,1280,.8); $('#momentPhotoBtn').textContent='📷 已加照片 ✓'; e.target.value=''; });
+$('#momentSend').onclick = async () => {
   const m = moodByK(selMood);
-  moments.push({ id:uid(), mood:selMood, face:m.faces[selFace], text, photo:momentPhoto, time:new Date().toLocaleString('zh-CN'), by:+$('#momentWho').value });
-  store.set('moments', moments);
-  $('#momentText').value=''; momentPhoto=null; $('#momentPhotoBtn').textContent='📷 加照片';
-  renderMoments();
+  try{
+    await addMoment({ mood:selMood, face:m.faces[selFace], text:$('#momentText').value.trim(), photo:momentPhoto, by:+$('#momentWho').value, time:new Date().toLocaleString('zh-CN') });
+    $('#momentText').value=''; momentPhoto=null; $('#momentPhotoBtn').textContent='📷 加照片';
+    renderMoments();
+  }catch(e){ alert('发布失败，请检查网络'); }
 };
 
 /* ---------- 情话库 ---------- */
@@ -258,14 +334,15 @@ function coupleId(){ const s=(state.nick1+state.nick2+state.startDate).replace(/
 /* ---------- 设置 / 首次引导 ---------- */
 function openSettings(){ $('#inNick1').value=state.nick1; $('#inNick2').value=state.nick2; $('#inDate').value=(state.startDate||'').slice(0,16); $('#inMatch').value=state.match; $('#mask').classList.add('show'); }
 $('#setBtn').onclick = openSettings;
-$('#cancelBtn').onclick = () => { state.onboarded = true; saveState(); $('#mask').classList.remove('show'); };
 $('#mask').addEventListener('click', e => { if(e.target.id==='mask') $('#mask').classList.remove('show'); });
-$('#saveBtn').onclick = () => {
+$('#cancelBtn').onclick = async () => { state.onboarded = true; try{ await persistSettings(); }catch(e){} $('#mask').classList.remove('show'); };
+$('#saveBtn').onclick = async () => {
   state.nick1 = $('#inNick1').value.trim() || state.nick1;
   state.nick2 = $('#inNick2').value.trim() || state.nick2;
   if($('#inDate').value) state.startDate = $('#inDate').value;
   state.match = +$('#inMatch').value || 0;
-  state.onboarded = true; saveState();
+  state.onboarded = true;
+  try{ await persistSettings(); }catch(e){ alert('保存失败，请检查网络'); }
   fillNames(); tick(); renderMatch(); renderMoments();
   $('#coupleId').textContent = coupleId();
   $('#mask').classList.remove('show');
@@ -276,8 +353,13 @@ const io = new IntersectionObserver(es => es.forEach(e => { if(e.isIntersecting)
 function observeReveals(){ $$('.reveal').forEach(el => io.observe(el)); }
 
 /* ---------- 初始化 ---------- */
-fillNames();
-renderMeetings(); renderBouquets(); renderGallery(); renderMoodPicker(); renderMoments(); renderMatch();
-$('#coupleId').textContent = coupleId();
-observeReveals();
-if(!state.onboarded){ $('#setTitle').textContent = '先认识一下你们吧'; setTimeout(openSettings, 700); }
+async function init(){
+  try{ await loadData(); }catch(e){ console.error('加载云端数据失败，使用本地数据', e); }
+  fillNames();
+  tick(); setInterval(tick, 1000);
+  renderMeetings(); renderBouquets(); renderGallery(); renderMoodPicker(); renderMoments(); renderMatch();
+  $('#coupleId').textContent = coupleId();
+  observeReveals();
+  if(!state.onboarded){ $('#setTitle').textContent = '先认识一下你们吧'; setTimeout(openSettings, 700); }
+}
+init();
