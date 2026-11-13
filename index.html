@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>我们的故事</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💗</text></svg>">
+<meta name="theme-color" content="#e75480">
+<meta name="description" content="属于我们两个人的恋爱小站，记录相遇、花、照片和每一天的心情。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=ZCOOL+XiaoWei&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand display">♥ 我们的故事</div>
+      <nav class="nav">
+        <a href="#meetings">日记</a>
+        <a href="#bouquets">花花</a>
+        <a href="#gallery">瞬间</a>
+        <a href="#moments">动态</a>
+        <a href="#words">情话</a>
+        <a href="#match">匹配</a>
+      </nav>
+      <button class="icon-btn" id="themeBtn">🌙</button>
+      <button class="icon-btn" id="setBtn">⚙️</button>
+    </div>
+  </header>
+
+  <!-- 首页封面 -->
+  <section id="hero">
+    <canvas id="hearts"></canvas>
+    <div class="aurora"><i></i><i></i><i></i></div>
+    <div class="hero-inner">
+      <div class="nick display"><span id="nick1"></span> <span class="heart">♥</span> <span id="nick2"></span></div>
+      <div class="hero-sub">从相遇那天起，一起慢慢走下去</div>
+      <div class="timer">
+        <div class="tbox"><b id="tD">0</b><span>天</span></div>
+        <div class="tbox"><b id="tH">0</b><span>时</span></div>
+        <div class="tbox"><b id="tM">0</b><span>分</span></div>
+        <div class="tbox"><b id="tS">0</b><span>秒</span></div>
+      </div>
+      <div class="days-line">我们已经在一起 <b id="totalDays">0</b> 天啦</div>
+      <a class="btn" href="#meetings">看我们的故事 ↓</a>
+    </div>
+  </section>
+
+  <main class="wrap">
+
+    <!-- 相遇日记 -->
+    <section id="meetings">
+      <h2 class="sec-title display reveal">相遇日记</h2>
+      <p class="sec-desc">每一次见面，都值得被记住</p>
+      <div class="mt" id="meetingList"></div>
+      <div class="add-bar"><button class="btn" id="addMeetingBtn">+ 添加见面</button></div>
+    </section>
+
+    <!-- 送你的花 -->
+    <section id="bouquets">
+      <h2 class="sec-title display reveal">送你的花</h2>
+      <p class="sec-desc">第一束、第二束……每一束都记在这里</p>
+      <div class="bouquet-grid" id="bouquetList"></div>
+      <div class="add-bar"><button class="btn" id="addBouquetBtn">+ 送一束花</button></div>
+    </section>
+
+    <!-- 有趣的瞬间 -->
+    <section id="gallery">
+      <h2 class="sec-title display reveal">有趣的瞬间</h2>
+      <p class="sec-desc">日常里的有趣照片，每张都能写一句备注</p>
+      <div class="gallery-grid" id="galleryGrid"></div>
+      <div class="add-bar"><button class="btn" id="addPhotoBtn">+ 添加瞬间</button></div>
+    </section>
+
+    <!-- 心情广场 -->
+    <section id="moments">
+      <h2 class="sec-title display reveal">心情广场</h2>
+      <p class="sec-desc">用颜文字打卡今天的心情，分享有趣的事</p>
+      <div class="card composer">
+        <div class="mood-row" id="moodRow"></div>
+        <div class="faces" id="faceRow"></div>
+        <textarea id="momentText" placeholder="分享今天的心情或有趣的事…"></textarea>
+        <div class="row">
+          <button class="btn sm" id="momentPhotoBtn">📷 加照片</button>
+          <select id="momentWho"></select>
+          <button class="btn" id="momentSend">发布</button>
+        </div>
+      </div>
+      <div class="moments" id="momentList"></div>
+    </section>
+
+    <!-- 情话库 -->
+    <section id="words">
+      <h2 class="sec-title display reveal">专属情话库</h2>
+      <p class="sec-desc">随机掉落一句，温柔不油腻</p>
+      <div class="card">
+        <div id="wordBox" class="display"></div>
+        <div class="center"><button class="btn" id="wordBtn">换一句 ✨</button></div>
+      </div>
+    </section>
+
+    <!-- 匹配度 -->
+    <section id="match">
+      <h2 class="sec-title display reveal">爱情匹配度</h2>
+      <p class="sec-desc">不是测试，是我们刚刚好</p>
+      <div class="card match-wrap">
+        <div class="donut">
+          <svg viewBox="0 0 120 120">
+            <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#e75480"/><stop offset="1" stop-color="#b06ee0"/></linearGradient></defs>
+            <circle cx="60" cy="60" r="52" fill="none" stroke="var(--track)" stroke-width="11"/>
+            <circle id="matchArc" cx="60" cy="60" r="52" fill="none" stroke="url(#g)" stroke-width="11" stroke-linecap="round" stroke-dasharray="326.73" stroke-dashoffset="326.73"/>
+          </svg>
+          <div class="val"><b id="matchPct">0%</b><span>匹配度</span></div>
+        </div>
+        <div class="match-names display"><span class="who-a"></span> ♥ <span class="who-b"></span></div>
+        <div class="match-tag" id="matchTag"></div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer>
+    <div>专属恋爱ID：<span class="id" id="coupleId"></span></div>
+    <div class="c">© 2026 我们的故事 · 用心记录在一起的每一天</div>
+  </footer>
+
+  <button id="musicBtn">🎵</button>
+
+  <!-- 设置 -->
+  <div class="mask" id="mask">
+    <div class="modal">
+      <h3 class="display" id="setTitle">我们的设置</h3>
+      <label>我的昵称</label><input id="inNick1">
+      <label>TA 的昵称</label><input id="inNick2">
+      <label>在一起的时间</label><input id="inDate" type="datetime-local">
+      <label>匹配度（%）</label><input id="inMatch" type="number" min="0" max="100">
+      <div class="row"><button class="btn ghost" id="cancelBtn">取消</button><button class="btn" id="saveBtn">保存</button></div>
+    </div>
+  </div>
+
+  <!-- 添加见面 -->
+  <div class="mask" id="meetingMask">
+    <div class="modal">
+      <h3 class="display">添加见面</h3>
+      <label>日期</label><input id="mDate" type="date">
+      <label>标题</label><input id="mTitle" placeholder="比如：第六次见面 · 看电影">
+      <label>那天发生了什么</label><textarea id="mText" placeholder="简单记一下…"></textarea>
+      <label>当天照片（可多选）</label><input id="mPhotos" type="file" accept="image/*" multiple>
+      <div class="hint" id="mHint"></div>
+      <div class="row"><button class="btn ghost" id="mCancel">取消</button><button class="btn" id="mSave">保存</button></div>
+    </div>
+  </div>
+
+  <!-- 送花 -->
+  <div class="mask" id="bouquetMask">
+    <div class="modal">
+      <h3 class="display">送一束花</h3>
+      <label>日期（可留空）</label><input id="bDate" type="date">
+      <label>想说的话</label><input id="bNote" placeholder="比如：第二束花">
+      <label>花的照片</label><input id="bPhoto" type="file" accept="image/*">
+      <div class="row"><button class="btn ghost" id="bCancel">取消</button><button class="btn" id="bSave">保存</button></div>
+    </div>
+  </div>
+
+  <!-- 添加瞬间 -->
+  <div class="mask" id="galleryMask">
+    <div class="modal">
+      <h3 class="display">添加有趣的照片</h3>
+      <label>照片</label><input id="gPhoto" type="file" accept="image/*">
+      <label>备注</label><input id="gNote" placeholder="写点什么，比如：她超爱这个">
+      <div class="row"><button class="btn ghost" id="gCancel">取消</button><button class="btn" id="gSave">保存</button></div>
+    </div>
+  </div>
+
+  <!-- 灯箱 -->
+  <div id="lightbox">
+    <button id="lbClose">✕</button>
+    <img id="lbImg" src="" alt="">
+    <div id="lbCap"></div>
+    <div class="lb-btns">
+      <button id="lbPrev">‹</button>
+      <button id="lbNext">›</button>
+    </div>
+  </div>
+
+  <input type="file" id="momentFile" accept="image/*" hidden>
+
+  <script src="js/data.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
