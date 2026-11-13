@@ -143,13 +143,15 @@ const cvs = $('#hearts'), ctx = cvs.getContext('2d');
 const DPR = Math.min(devicePixelRatio||1, 2);
 let HW=0, HH=0, hearts=[], petals=[];
 function canvasResize(){
-  const r = cvs.getBoundingClientRect();
-  HW = Math.max(1, Math.floor(r.width));
-  HH = Math.max(1, Math.floor(r.height));
+  const hero = cvs.parentElement;
+  const w = hero ? hero.clientWidth : 0;
+  const h = hero ? hero.clientHeight : 0;
+  HW = Math.max(1, w || window.innerWidth);
+  HH = Math.max(1, h || window.innerHeight);
   cvs.width = Math.floor(HW * DPR);
   cvs.height = Math.floor(HH * DPR);
-  cvs.style.width = HW + 'px';
-  cvs.style.height = HH + 'px';
+  cvs.style.width = '100%';
+  cvs.style.height = '100%';
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
 }
 function makeHeart(init){ const s=7+Math.random()*16; return { x:Math.random()*HW, y: init?Math.random()*HH : -s-Math.random()*HH*.5, s, vy:.35+Math.random()*.8, sway:.5+Math.random(), ph:Math.random()*Math.PI*2, a:.2+Math.random()*.5, rot:(Math.random()-.5)*.6, c:Math.random()<.7?'#e75480':'#ff8fb3' }; }
@@ -167,6 +169,7 @@ particlesInit(); particlesLoop();
 window.addEventListener('resize', particlesInit);
 window.addEventListener('orientationchange', particlesInit);
 window.addEventListener('load', particlesInit);
+setTimeout(particlesInit, 400);
 
 /* ---------- 图片压缩 ---------- */
 function fileToDataURL(file, maxW, q){

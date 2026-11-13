@@ -50,7 +50,7 @@ textarea,input,select{font-family:inherit}
 
 /* 首页封面 */
 #hero{position:relative;height:100svh;min-height:560px;overflow:hidden;display:flex;align-items:center;justify-content:center}
-#hearts{position:absolute;inset:0;z-index:1;pointer-events:none}
+#hearts{position:absolute;left:0;top:0;width:100%;height:100%;z-index:1;pointer-events:none;display:block}
 .aurora{position:absolute;inset:0;z-index:0;overflow:hidden}
 .aurora i{position:absolute;width:46vw;height:46vw;border-radius:50%;filter:blur(64px);opacity:.55;animation:float 18s ease-in-out infinite}
 .aurora i:nth-child(1){background:#ffb3c8;top:-12%;left:-10%;animation-delay:0s}
