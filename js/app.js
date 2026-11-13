@@ -174,14 +174,39 @@ setTimeout(particlesInit, 400);
 /* ---------- 图片压缩 ---------- */
 function fileToDataURL(file, maxW, q){
   return new Promise((res, rej)=>{
-    const img = new Image(); const url = URL.createObjectURL(file);
-    img.onload = () => { const sc = Math.min(1, maxW/img.width); const w = Math.max(1, Math.round(img.width*sc)); const h = Math.max(1, Math.round(img.height*sc));
-      const c = document.createElement('canvas'); c.width=w; c.height=h; c.getContext('2d').drawImage(img,0,0,w,h); URL.revokeObjectURL(url); res(c.toDataURL('image/jpeg', q)); };
-    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('图片读取失败')); };
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    const timer = setTimeout(() => { URL.revokeObjectURL(url); rej(new Error('处理超时，请重试')); }, 20000);
+    img.onload = () => {
+      clearTimeout(timer);
+      try{
+        const sc = Math.min(1, maxW/img.width);
+        const w = Math.max(1, Math.round(img.width*sc));
+        const h = Math.max(1, Math.round(img.height*sc));
+        const c = document.createElement('canvas'); c.width=w; c.height=h;
+        const cx = c.getContext('2d');
+        cx.fillStyle = '#fff'; cx.fillRect(0,0,w,h);
+        cx.drawImage(img, 0, 0, w, h);
+        URL.revokeObjectURL(url);
+        res(c.toDataURL('image/jpeg', q));
+      }catch(err){
+        URL.revokeObjectURL(url);
+        rej(new Error('图片处理失败'));
+      }
+    };
+    img.onerror = () => { clearTimeout(timer); URL.revokeObjectURL(url); rej(new Error('无法读取该图片（格式不支持或文件损坏）')); };
     img.src = url;
   });
 }
-async function filesToDataURLs(files, maxW, q){ const out=[]; for(const f of files) out.push(await fileToDataURL(f, maxW, q)); return out; }
+async function filesToDataURLs(files, maxW, q, onProgress){
+  const ok = [], failed = [];
+  for(let i=0;i<files.length;i++){
+    if(onProgress) onProgress(i+1, files.length);
+    try{ ok.push(await fileToDataURL(files[i], maxW, q)); }
+    catch(e){ failed.push(files[i].name || ('第'+(i+1)+'张')); }
+  }
+  return { ok, failed };
+}
 
 /* ---------- 灯箱 ---------- */
 let lbList=[], lbIdx=0;
@@ -212,7 +237,16 @@ function renderMeetings(){
 const meetingPhotos = [];
 $('#addMeetingBtn').onclick = () => { meetingPhotos.length=0; $('#mHint').textContent=''; $('#meetingMask').classList.add('show'); };
 $('#mCancel').onclick = () => $('#meetingMask').classList.remove('show');
-$('#mPhotos').addEventListener('change', async e => { const files=[...e.target.files]; if(!files.length) return; $('#mHint').textContent='处理中…'; const arr=await filesToDataURLs(files,1280,.8); meetingPhotos.push(...arr); $('#mHint').textContent='已选 '+meetingPhotos.length+' 张'; e.target.value=''; });
+$('#mPhotos').addEventListener('change', async e => {
+  const files=[...e.target.files]; if(!files.length) return;
+  const { ok, failed } = await filesToDataURLs(files,1280,.8,(i,n)=> $('#mHint').textContent='正在处理 '+i+'/'+n+'…');
+  meetingPhotos.push(...ok);
+  let msg = '已选 '+meetingPhotos.length+' 张';
+  if(failed.length) msg += '（'+failed.length+' 张失败）';
+  $('#mHint').textContent = msg;
+  if(failed.length) alert('有 '+failed.length+' 张无法读取，已跳过：\n'+failed.join('\n'));
+  e.target.value='';
+});
 $('#mSave').onclick = async () => {
   const date=$('#mDate').value, title=$('#mTitle').value.trim(), text=$('#mText').value.trim();
   if(!date && !title && !text && !meetingPhotos.length) return;
@@ -238,14 +272,27 @@ function renderBouquets(){
   });
 }
 let bouquetPhotoData = null;
-$('#addBouquetBtn').onclick = () => $('#bouquetMask').classList.add('show');
+$('#addBouquetBtn').onclick = () => { bouquetPhotoData=null; $('#bPreview').style.display='none'; $('#bPreview').src=''; $('#bHint').textContent=''; $('#bouquetMask').classList.add('show'); };
 $('#bCancel').onclick = () => $('#bouquetMask').classList.remove('show');
-$('#bPhoto').addEventListener('change', async e => { const f=e.target.files[0]; if(!f) return; bouquetPhotoData = await fileToDataURL(f,1280,.82); e.target.value=''; });
+$('#bPhoto').addEventListener('change', async e => {
+  const f=e.target.files[0]; if(!f) return;
+  $('#bHint').textContent='处理中…';
+  try{
+    bouquetPhotoData = await fileToDataURL(f,1280,.82);
+    $('#bPreview').src = bouquetPhotoData;
+    $('#bPreview').style.display = 'block';
+    $('#bHint').textContent='已选择照片 ✓';
+  }catch(err){
+    $('#bHint').textContent='';
+    alert(err.message || '图片处理失败');
+  }
+  e.target.value='';
+});
 $('#bSave').onclick = async () => {
   if(!bouquetPhotoData){ alert('请先选择花的照片'); return; }
   try{
     await addBouquet({ date:$('#bDate').value, note:$('#bNote').value.trim()||'一束花', photo:bouquetPhotoData });
-    $('#bDate').value=''; $('#bNote').value=''; bouquetPhotoData=null;
+    $('#bDate').value=''; $('#bNote').value=''; bouquetPhotoData=null; $('#bPreview').style.display='none'; $('#bHint').textContent='';
     $('#bouquetMask').classList.remove('show'); renderBouquets();
   }catch(e){ alert('保存失败，请检查网络'); }
 };
@@ -268,14 +315,27 @@ function renderGallery(){
   });
 }
 let galleryPhotoData = null;
-$('#addPhotoBtn').onclick = () => $('#galleryMask').classList.add('show');
+$('#addPhotoBtn').onclick = () => { galleryPhotoData=null; $('#gPreview').style.display='none'; $('#gPreview').src=''; $('#gHint').textContent=''; $('#galleryMask').classList.add('show'); };
 $('#gCancel').onclick = () => $('#galleryMask').classList.remove('show');
-$('#gPhoto').addEventListener('change', async e => { const f=e.target.files[0]; if(!f) return; galleryPhotoData = await fileToDataURL(f,1280,.82); e.target.value=''; });
+$('#gPhoto').addEventListener('change', async e => {
+  const f=e.target.files[0]; if(!f) return;
+  $('#gHint').textContent='处理中…';
+  try{
+    galleryPhotoData = await fileToDataURL(f,1280,.82);
+    $('#gPreview').src = galleryPhotoData;
+    $('#gPreview').style.display = 'block';
+    $('#gHint').textContent='已选择照片 ✓';
+  }catch(err){
+    $('#gHint').textContent='';
+    alert(err.message || '图片处理失败');
+  }
+  e.target.value='';
+});
 $('#gSave').onclick = async () => {
   if(!galleryPhotoData){ alert('请先选择照片'); return; }
   try{
     await addGalleryItem({ src:galleryPhotoData, caption:$('#gNote').value.trim() });
-    galleryPhotoData=null; $('#gNote').value='';
+    galleryPhotoData=null; $('#gNote').value=''; $('#gPreview').style.display='none'; $('#gHint').textContent='';
     $('#galleryMask').classList.remove('show'); renderGallery();
   }catch(e){ alert('保存失败，请检查网络'); }
 };
@@ -314,7 +374,7 @@ function renderMoments(){
   });
 }
 $('#momentPhotoBtn').onclick = () => $('#momentFile').click();
-$('#momentFile').addEventListener('change', async e => { const f=e.target.files[0]; if(!f) return; momentPhoto = await fileToDataURL(f,1280,.8); $('#momentPhotoBtn').textContent='📷 已加照片 ✓'; e.target.value=''; });
+$('#momentFile').addEventListener('change', async e => { const f=e.target.files[0]; if(!f) return; try{ momentPhoto = await fileToDataURL(f,1280,.8); $('#momentPhotoBtn').textContent='📷 已加照片 ✓'; }catch(err){ alert(err.message || '图片处理失败'); } e.target.value=''; });
 $('#momentSend').onclick = async () => {
   const m = moodByK(selMood);
   try{

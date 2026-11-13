@@ -160,6 +160,8 @@
       <label>日期（可留空）</label><input id="bDate" type="date">
       <label>想说的话</label><input id="bNote" placeholder="比如：第二束花">
       <label>花的照片</label><input id="bPhoto" type="file" accept="image/*">
+      <div class="hint" id="bHint"></div>
+      <img id="bPreview" alt="" style="display:none;max-height:130px;border-radius:10px;margin-top:8px">
       <div class="row"><button class="btn ghost" id="bCancel">取消</button><button class="btn" id="bSave">保存</button></div>
     </div>
   </div>
@@ -169,6 +171,8 @@
     <div class="modal">
       <h3 class="display">添加有趣的照片</h3>
       <label>照片</label><input id="gPhoto" type="file" accept="image/*">
+      <div class="hint" id="gHint"></div>
+      <img id="gPreview" alt="" style="display:none;max-height:130px;border-radius:10px;margin-top:8px">
       <label>备注</label><input id="gNote" placeholder="写点什么，比如：她超爱这个">
       <div class="row"><button class="btn ghost" id="gCancel">取消</button><button class="btn" id="gSave">保存</button></div>
     </div>
