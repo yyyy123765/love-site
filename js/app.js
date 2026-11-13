@@ -112,9 +112,9 @@ async function removeMoment(id){
 }
 
 /* ---------- 主题 ---------- */
-function applyTheme(t){ document.documentElement.dataset.theme = t; $('#themeBtn').textContent = t==='dark' ? '☀️' : '🌙'; store.set('theme', t); }
+function applyTheme(t){ document.documentElement.dataset.theme = t; $('#themeBtn').textContent = t==='dark' ? '☀️' : '🌙'; store.set('theme', t); const m = document.querySelector('meta[name="theme-color"]'); if(m) m.setAttribute('content', t==='dark' ? '#14111d' : '#fff6f7'); }
 $('#themeBtn').addEventListener('click', () => applyTheme(document.documentElement.dataset.theme==='dark' ? 'light' : 'dark'));
-applyTheme(store.get('theme','light'));
+applyTheme(store.get('theme','dark'));
 
 /* ---------- 昵称 ---------- */
 function fillNames(){
