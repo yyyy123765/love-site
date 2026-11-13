@@ -17,7 +17,7 @@ window.INITIAL = {
     { id:'m1', date:'2026-10-03', title:'第一次见面 · 初见时的心动', text:'那天我既紧张又期待，不知道为啥没胃口，可能是你比任何一道菜都更让我移不开眼哈哈。去哪玩不重要，主要是想和你呆一块。', photos:['images/meeting1.jpg'] },
     { id:'m2', date:'2026-10-07', title:'第二次见面 · 因为很想见你', text:'我确实是想见你，但我不好意思明说，然后就去找你了，送你去学校，一起吃饭。', photos:['images/meeting2.png'] },
     { id:'m3', date:'2026-10-18', title:'第三次见面 · 密室逃脱', text:'这一次和你还有你闺蜜、绝版英雄一起去密室逃脱，确实吓人。我想以后你害怕的时候，我都在你身边。', photos:['images/meeting3.png'] },
-    { id:'m4', date:'2026-11-01', title:'第四次见面 · 秦岭野生动物园', text:'我们一起去动物园，这一次我们聊得很开心，最逗的就是那个狐猴，还有那个长鼻子浣熊。', photos:[] },
+    { id:'m4', date:'2026-11-01', title:'第四次见面 · 秦岭野生动物园', text:'我们一起去动物园，这一次我们聊得很开心，最逗的就是那个狐猴，还有那个长鼻子浣熊。', photos:['images/meeting4-1.jpg','images/meeting4-2.jpg','images/meeting4-3.jpg','images/meeting4-4.jpg'] },
     { id:'m5', date:'2026-11-08', title:'第五次见面 · 游乐园与告白', text:'一起去游乐园，一直在刮大风，还好最后坐上了过山车。晚上我正式向你告白，表达了我的心意。你说愿意的那一刻，我心都快融化了。', photos:['images/ferris.jpg'] }
   ],
 
