@@ -12,7 +12,7 @@ const store = {
 
 /* ---------- 后端 Supabase ---------- */
 const SC = (window.SUPABASE_CONFIG || {});
-let supabase = null;
+let sb = null;
 let cloud = false;
 const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('请求超时')), ms))]);
 async function q(promise){ const { data, error } = await withTimeout(promise, 6000); if(error) throw error; return data; }
@@ -36,7 +36,7 @@ function loadLocal(){
   moments = store.get('moments', []);
 }
 async function loadCloud(){
-  const s = await q(supabase.from('site_settings').select('*').eq('id',1).maybeSingle());
+  const s = await q(sb.from('site_settings').select('*').eq('id',1).maybeSingle());
   if(s){
     state.nick1 = s.nick1 ?? state.nick1;
     state.nick2 = s.nick2 ?? state.nick2;
@@ -44,69 +44,69 @@ async function loadCloud(){
     state.match = s.match_percent ?? state.match;
     state.onboarded = true;
   }
-  addedMeetings = (await q(supabase.from('meetings').select('*').order('id',{ascending:true})) || []).map(r=>({ id:'a'+r.id, date:r.date, title:r.title, text:r.text, photos:r.photos||[] }));
-  addedBouquets = (await q(supabase.from('bouquets').select('*').order('id',{ascending:true})) || []).map(r=>({ id:'a'+r.id, date:r.date, note:r.note, photo:r.photo }));
-  addedGallery = (await q(supabase.from('gallery').select('*').order('id',{ascending:true})) || []).map(r=>({ id:'a'+r.id, src:r.src, caption:r.caption }));
-  moments = (await q(supabase.from('moments').select('*').order('id',{ascending:true})) || []).map(r=>({ id:'a'+r.id, mood:r.mood, face:r.face, text:r.text, photo:r.photo, time:r.time, by:r.who }));
+  addedMeetings = (await q(sb.from('meetings').select('*').order('id',{ascending:true})) || []).map(r=>({ id:'a'+r.id, date:r.date, title:r.title, text:r.text, photos:r.photos||[] }));
+  addedBouquets = (await q(sb.from('bouquets').select('*').order('id',{ascending:true})) || []).map(r=>({ id:'a'+r.id, date:r.date, note:r.note, photo:r.photo }));
+  addedGallery = (await q(sb.from('gallery').select('*').order('id',{ascending:true})) || []).map(r=>({ id:'a'+r.id, src:r.src, caption:r.caption }));
+  moments = (await q(sb.from('moments').select('*').order('id',{ascending:true})) || []).map(r=>({ id:'a'+r.id, mood:r.mood, face:r.face, text:r.text, photo:r.photo, time:r.time, by:r.who }));
 }
 async function tryCloud(){
   if(!(SC.url && SC.anonKey)) return;            // 未配置 → 纯本地模式
   if(!window.supabase) return;                   // SDK 未加载 → 纯本地模式
-  supabase = window.supabase.createClient(SC.url, SC.anonKey);
+  sb = window.supabase.createClient(SC.url, SC.anonKey);
   cloud = true;
   try{
     await withTimeout(loadCloud(), 12000);
     console.info('已连接云端 Supabase');
   }catch(e){
     console.warn('云端连接失败，保持本地模式：', e && e.message);
-    cloud = false; supabase = null;              // 降级本地，避免后续操作卡顿
+    cloud = false; sb = null;              // 降级本地，避免后续操作卡顿
   }
 }
 
 /* ---------- 持久化（云端 / 本地） ---------- */
 async function persistSettings(){
-  if(cloud){ await q(supabase.from('site_settings').upsert({ id:1, nick1:state.nick1, nick2:state.nick2, start_date:state.startDate, match_percent:state.match })); }
+  if(cloud){ await q(sb.from('site_settings').upsert({ id:1, nick1:state.nick1, nick2:state.nick2, start_date:state.startDate, match_percent:state.match })); }
   else { store.set('state', { nick1:state.nick1, nick2:state.nick2, startDate:state.startDate, match:state.match, onboarded:state.onboarded }); }
 }
 async function addMeeting(item){
-  if(cloud){ const r = await q(supabase.from('meetings').insert({ date:item.date, title:item.title, text:item.text, photos:item.photos }).select().single()); item.id = 'a'+r.id; addedMeetings.push(item); }
+  if(cloud){ const r = await q(sb.from('meetings').insert({ date:item.date, title:item.title, text:item.text, photos:item.photos }).select().single()); item.id = 'a'+r.id; addedMeetings.push(item); }
   else { item.id = uid(); addedMeetings.push(item); store.set('meetings', addedMeetings); }
 }
 async function removeMeeting(id){
-  if(cloud){ await q(supabase.from('meetings').delete().eq('id', Number(id.slice(1)))); }
+  if(cloud){ await q(sb.from('meetings').delete().eq('id', Number(id.slice(1)))); }
   addedMeetings = addedMeetings.filter(x => x.id !== id);
   if(!cloud) store.set('meetings', addedMeetings);
 }
 async function addBouquet(item){
-  if(cloud){ const r = await q(supabase.from('bouquets').insert({ date:item.date, note:item.note, photo:item.photo }).select().single()); item.id = 'a'+r.id; addedBouquets.push(item); }
+  if(cloud){ const r = await q(sb.from('bouquets').insert({ date:item.date, note:item.note, photo:item.photo }).select().single()); item.id = 'a'+r.id; addedBouquets.push(item); }
   else { item.id = uid(); addedBouquets.push(item); store.set('bouquets', addedBouquets); }
 }
 async function removeBouquet(id){
-  if(cloud){ await q(supabase.from('bouquets').delete().eq('id', Number(id.slice(1)))); }
+  if(cloud){ await q(sb.from('bouquets').delete().eq('id', Number(id.slice(1)))); }
   addedBouquets = addedBouquets.filter(x => x.id !== id);
   if(!cloud) store.set('bouquets', addedBouquets);
 }
 async function addGalleryItem(item){
-  if(cloud){ const r = await q(supabase.from('gallery').insert({ src:item.src, caption:item.caption }).select().single()); item.id = 'a'+r.id; addedGallery.push(item); }
+  if(cloud){ const r = await q(sb.from('gallery').insert({ src:item.src, caption:item.caption }).select().single()); item.id = 'a'+r.id; addedGallery.push(item); }
   else { item.id = uid(); addedGallery.push(item); store.set('gallery', addedGallery); }
 }
 async function removeGalleryItem(id){
-  if(cloud){ await q(supabase.from('gallery').delete().eq('id', Number(id.slice(1)))); }
+  if(cloud){ await q(sb.from('gallery').delete().eq('id', Number(id.slice(1)))); }
   addedGallery = addedGallery.filter(x => x.id !== id);
   if(!cloud) store.set('gallery', addedGallery);
 }
 async function updateGalleryNote(id, caption){
   const g = addedGallery.find(x => x.id === id); if(!g) return;
-  if(cloud){ await q(supabase.from('gallery').update({ caption }).eq('id', Number(id.slice(1)))); }
+  if(cloud){ await q(sb.from('gallery').update({ caption }).eq('id', Number(id.slice(1)))); }
   g.caption = caption;
   if(!cloud) store.set('gallery', addedGallery);
 }
 async function addMoment(item){
-  if(cloud){ const r = await q(supabase.from('moments').insert({ mood:item.mood, face:item.face, text:item.text, photo:item.photo, who:item.by, time:item.time }).select().single()); item.id = 'a'+r.id; moments.push(item); }
+  if(cloud){ const r = await q(sb.from('moments').insert({ mood:item.mood, face:item.face, text:item.text, photo:item.photo, who:item.by, time:item.time }).select().single()); item.id = 'a'+r.id; moments.push(item); }
   else { item.id = uid(); moments.push(item); store.set('moments', moments); }
 }
 async function removeMoment(id){
-  if(cloud){ await q(supabase.from('moments').delete().eq('id', Number(id.slice(1)))); }
+  if(cloud){ await q(sb.from('moments').delete().eq('id', Number(id.slice(1)))); }
   moments = moments.filter(x => x.id !== id);
   if(!cloud) store.set('moments', moments);
 }
