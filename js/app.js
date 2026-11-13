@@ -416,7 +416,7 @@ if(store.get('music','on')==='off'){ $('#musicBtn').classList.add('off'); }
 else { const once = () => { if(!musicOn) startMusic(); ['pointerdown','touchstart','click'].forEach(ev => document.removeEventListener(ev, once)); }; ['pointerdown','touchstart','click'].forEach(ev => document.addEventListener(ev, once)); }
 
 /* ---------- 恋爱ID ---------- */
-function coupleId(){ const s=(state.nick1+state.nick2+state.startDate).replace(/\s/g,''); let h=0; for(const c of s) h=(h*31+c.charCodeAt(0))>>>0; return 'LOVE-'+h.toString(36).toUpperCase().padStart(6,'0'); }
+function coupleId(){ const custom = (INITIAL.couple.loveId || '').trim(); if(custom) return custom; const s=(state.nick1+state.nick2+state.startDate).replace(/\s/g,''); let h=0; for(const c of s) h=(h*31+c.charCodeAt(0))>>>0; return 'LOVE-'+h.toString(36).toUpperCase().padStart(6,'0'); }
 
 /* ---------- 设置 / 首次引导 ---------- */
 function openSettings(){ $('#inNick1').value=state.nick1; $('#inNick2').value=state.nick2; $('#inDate').value=(state.startDate||'').slice(0,16); $('#inMatch').value=state.match; $('#mask').classList.add('show'); }

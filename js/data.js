@@ -9,6 +9,7 @@ window.INITIAL = {
     nick2: '你',                       // TA 的昵称
     startDate: '2026-11-08T20:00:00',  // 在一起的时间（告白那天）
     matchPercent: 99,                  // 匹配度
+    loveId: 'ycmyd',                   // 专属恋爱ID（留空则按昵称+日期自动生成）
     musicUrl: ''                       // 可选：你自己的背景音乐 mp3 路径（留空用内置轻柔纯音乐）
   },
 
