@@ -15,7 +15,7 @@ const SC = (window.SUPABASE_CONFIG || {});
 let sb = null;
 let cloud = false;
 const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('请求超时')), ms))]);
-async function q(promise){ const { data, error } = await withTimeout(promise, 6000); if(error) throw error; return data; }
+async function q(promise){ const { data, error } = await withTimeout(promise, 10000); if(error) throw error; return data; }
 
 /* ---------- 状态 ---------- */
 let state = { nick1:INITIAL.couple.nick1, nick2:INITIAL.couple.nick2, startDate:INITIAL.couple.startDate, match:INITIAL.couple.matchPercent, onboarded:false };
@@ -26,6 +26,7 @@ const gallery = () => INITIAL.gallery.concat(addedGallery);
 
 const fmtDate = d => d ? String(d).replace(/-/g, '.') : '';
 const moodByK = k => INITIAL.moods.find(m => m.k === k);
+function saveCache(){ try{ localStorage.setItem('love2_cache', JSON.stringify({ nick1:state.nick1, nick2:state.nick2, startDate:state.startDate, match:state.match, addedMeetings, addedBouquets, addedGallery, moments })); }catch(e){} }
 
 /* ---------- 数据加载（本地 / 云端） ---------- */
 function loadLocal(){
@@ -34,6 +35,17 @@ function loadLocal(){
   addedBouquets = store.get('bouquets', []);
   addedGallery = store.get('gallery', []);
   moments = store.get('moments', []);
+  const cache = store.get('cache', null);
+  if(cache){
+    state.nick1 = cache.nick1 ?? state.nick1;
+    state.nick2 = cache.nick2 ?? state.nick2;
+    state.startDate = cache.startDate ?? state.startDate;
+    state.match = cache.match ?? state.match;
+    if(cache.addedMeetings) addedMeetings = cache.addedMeetings;
+    if(cache.addedBouquets) addedBouquets = cache.addedBouquets;
+    if(cache.addedGallery) addedGallery = cache.addedGallery;
+    if(cache.moments) moments = cache.moments;
+  }
 }
 async function loadCloud(){
   const s = await q(sb.from('site_settings').select('*').eq('id',1).maybeSingle());
@@ -55,8 +67,8 @@ async function tryCloud(){
   sb = window.supabase.createClient(SC.url, SC.anonKey);
   cloud = true;
   try{
-    await withTimeout(loadCloud(), 12000);
-    console.info('已连接云端 Supabase');
+    await withTimeout(loadCloud(), 20000);
+    console.info('已连接云端 Supabase'); saveCache();
   }catch(e){
     console.warn('云端连接失败，保持本地模式：', e && e.message);
     cloud = false; sb = null;              // 降级本地，避免后续操作卡顿
@@ -170,6 +182,8 @@ window.addEventListener('resize', particlesInit);
 window.addEventListener('orientationchange', particlesInit);
 window.addEventListener('load', particlesInit);
 setTimeout(particlesInit, 400);
+window.addEventListener('pagehide', () => { if(cloud) saveCache(); });
+window.addEventListener('beforeunload', () => { if(cloud) saveCache(); });
 
 /* ---------- 图片压缩 ---------- */
 function fileToDataURL(file, maxW, q){
