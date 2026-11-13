@@ -10,11 +10,12 @@ const store = {
   set(k, v){ try{ localStorage.setItem('love2_'+k, JSON.stringify(v)); }catch(e){ alert('浏览器本地存储已满，请删除一些大照片或减小图片尺寸'); } }
 };
 
-/* ---------- 后端 Supabase（配置了密钥则启用云端共享） ---------- */
+/* ---------- 后端 Supabase ---------- */
 const SC = (window.SUPABASE_CONFIG || {});
-const supabase = (SC.url && SC.anonKey && window.supabase) ? window.supabase.createClient(SC.url, SC.anonKey) : null;
-const cloud = !!supabase;
-async function q(promise){ const { data, error } = await promise; if(error){ throw error; } return data; }
+let supabase = null;
+let cloud = false;
+const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('请求超时')), ms))]);
+async function q(promise){ const { data, error } = await withTimeout(promise, 6000); if(error) throw error; return data; }
 
 /* ---------- 状态 ---------- */
 let state = { nick1:INITIAL.couple.nick1, nick2:INITIAL.couple.nick2, startDate:INITIAL.couple.startDate, match:INITIAL.couple.matchPercent, onboarded:false };
@@ -26,27 +27,39 @@ const gallery = () => INITIAL.gallery.concat(addedGallery);
 const fmtDate = d => d ? String(d).replace(/-/g, '.') : '';
 const moodByK = k => INITIAL.moods.find(m => m.k === k);
 
-/* ---------- 数据加载 ---------- */
-async function loadData(){
-  if(cloud){
-    const s = await q(supabase.from('site_settings').select('*').eq('id',1).maybeSingle());
-    if(s){
-      state.nick1 = s.nick1 ?? state.nick1;
-      state.nick2 = s.nick2 ?? state.nick2;
-      state.startDate = s.start_date ?? state.startDate;
-      state.match = s.match_percent ?? state.match;
-      state.onboarded = true;
-    }
-    addedMeetings = (await q(supabase.from('meetings').select('*').order('id',{ascending:true})) || []).map(r=>({ id:'a'+r.id, date:r.date, title:r.title, text:r.text, photos:r.photos||[] }));
-    addedBouquets = (await q(supabase.from('bouquets').select('*').order('id',{ascending:true})) || []).map(r=>({ id:'a'+r.id, date:r.date, note:r.note, photo:r.photo }));
-    addedGallery = (await q(supabase.from('gallery').select('*').order('id',{ascending:true})) || []).map(r=>({ id:'a'+r.id, src:r.src, caption:r.caption }));
-    moments = (await q(supabase.from('moments').select('*').order('id',{ascending:true})) || []).map(r=>({ id:'a'+r.id, mood:r.mood, face:r.face, text:r.text, photo:r.photo, time:r.time, by:r.who }));
-  } else {
-    state = Object.assign(state, store.get('state', {}));
-    addedMeetings = store.get('meetings', []);
-    addedBouquets = store.get('bouquets', []);
-    addedGallery = store.get('gallery', []);
-    moments = store.get('moments', []);
+/* ---------- 数据加载（本地 / 云端） ---------- */
+function loadLocal(){
+  state = Object.assign({ nick1:INITIAL.couple.nick1, nick2:INITIAL.couple.nick2, startDate:INITIAL.couple.startDate, match:INITIAL.couple.matchPercent, onboarded:false }, store.get('state', {}));
+  addedMeetings = store.get('meetings', []);
+  addedBouquets = store.get('bouquets', []);
+  addedGallery = store.get('gallery', []);
+  moments = store.get('moments', []);
+}
+async function loadCloud(){
+  const s = await q(supabase.from('site_settings').select('*').eq('id',1).maybeSingle());
+  if(s){
+    state.nick1 = s.nick1 ?? state.nick1;
+    state.nick2 = s.nick2 ?? state.nick2;
+    state.startDate = s.start_date ?? state.startDate;
+    state.match = s.match_percent ?? state.match;
+    state.onboarded = true;
+  }
+  addedMeetings = (await q(supabase.from('meetings').select('*').order('id',{ascending:true})) || []).map(r=>({ id:'a'+r.id, date:r.date, title:r.title, text:r.text, photos:r.photos||[] }));
+  addedBouquets = (await q(supabase.from('bouquets').select('*').order('id',{ascending:true})) || []).map(r=>({ id:'a'+r.id, date:r.date, note:r.note, photo:r.photo }));
+  addedGallery = (await q(supabase.from('gallery').select('*').order('id',{ascending:true})) || []).map(r=>({ id:'a'+r.id, src:r.src, caption:r.caption }));
+  moments = (await q(supabase.from('moments').select('*').order('id',{ascending:true})) || []).map(r=>({ id:'a'+r.id, mood:r.mood, face:r.face, text:r.text, photo:r.photo, time:r.time, by:r.who }));
+}
+async function tryCloud(){
+  if(!(SC.url && SC.anonKey)) return;            // 未配置 → 纯本地模式
+  if(!window.supabase) return;                   // SDK 未加载 → 纯本地模式
+  supabase = window.supabase.createClient(SC.url, SC.anonKey);
+  cloud = true;
+  try{
+    await withTimeout(loadCloud(), 12000);
+    console.info('已连接云端 Supabase');
+  }catch(e){
+    console.warn('云端连接失败，保持本地模式：', e && e.message);
+    cloud = false; supabase = null;              // 降级本地，避免后续操作卡顿
   }
 }
 
@@ -335,31 +348,39 @@ function coupleId(){ const s=(state.nick1+state.nick2+state.startDate).replace(/
 function openSettings(){ $('#inNick1').value=state.nick1; $('#inNick2').value=state.nick2; $('#inDate').value=(state.startDate||'').slice(0,16); $('#inMatch').value=state.match; $('#mask').classList.add('show'); }
 $('#setBtn').onclick = openSettings;
 $('#mask').addEventListener('click', e => { if(e.target.id==='mask') $('#mask').classList.remove('show'); });
-$('#cancelBtn').onclick = async () => { state.onboarded = true; try{ await persistSettings(); }catch(e){} $('#mask').classList.remove('show'); };
-$('#saveBtn').onclick = async () => {
+$('#cancelBtn').onclick = () => { state.onboarded = true; $('#mask').classList.remove('show'); persistSettings().catch(()=>{}); };
+$('#saveBtn').onclick = () => {
   state.nick1 = $('#inNick1').value.trim() || state.nick1;
   state.nick2 = $('#inNick2').value.trim() || state.nick2;
   if($('#inDate').value) state.startDate = $('#inDate').value;
   state.match = +$('#inMatch').value || 0;
   state.onboarded = true;
-  try{ await persistSettings(); }catch(e){ alert('保存失败，请检查网络'); }
   fillNames(); tick(); renderMatch(); renderMoments();
   $('#coupleId').textContent = coupleId();
   $('#mask').classList.remove('show');
+  persistSettings().catch(() => alert('设置未能同步到云端，请检查网络'));
 };
 
 /* ---------- 滚动进场 ---------- */
 const io = new IntersectionObserver(es => es.forEach(e => { if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } }), {threshold:.12});
 function observeReveals(){ $$('.reveal').forEach(el => io.observe(el)); }
 
-/* ---------- 初始化 ---------- */
-async function init(){
-  try{ await loadData(); }catch(e){ console.error('加载云端数据失败，使用本地数据', e); }
+/* ---------- 渲染汇总 ---------- */
+function renderAll(){
   fillNames();
-  tick(); setInterval(tick, 1000);
   renderMeetings(); renderBouquets(); renderGallery(); renderMoodPicker(); renderMoments(); renderMatch();
   $('#coupleId').textContent = coupleId();
+}
+
+/* ---------- 初始化（非阻塞） ---------- */
+async function init(){
+  loadLocal();                 // 1) 立即用本地数据渲染，保证页面秒开、可点击
+  renderAll();
+  tick(); setInterval(tick, 1000);
   observeReveals();
+  await tryCloud();            // 2) 后台尝试连云端，成功则刷新为云端数据
+  renderAll();
+  tick();
   if(!state.onboarded){ $('#setTitle').textContent = '先认识一下你们吧'; setTimeout(openSettings, 700); }
 }
 init();
