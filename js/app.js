@@ -142,20 +142,31 @@ function tick(){
 const cvs = $('#hearts'), ctx = cvs.getContext('2d');
 const DPR = Math.min(devicePixelRatio||1, 2);
 let HW=0, HH=0, hearts=[], petals=[];
-function canvasResize(){ HW=cvs.clientWidth; HH=cvs.clientHeight; cvs.width=HW*DPR; cvs.height=HH*DPR; ctx.setTransform(DPR,0,0,DPR,0,0); }
+function canvasResize(){
+  const r = cvs.getBoundingClientRect();
+  HW = Math.max(1, Math.floor(r.width));
+  HH = Math.max(1, Math.floor(r.height));
+  cvs.width = Math.floor(HW * DPR);
+  cvs.height = Math.floor(HH * DPR);
+  cvs.style.width = HW + 'px';
+  cvs.style.height = HH + 'px';
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
 function makeHeart(init){ const s=7+Math.random()*16; return { x:Math.random()*HW, y: init?Math.random()*HH : -s-Math.random()*HH*.5, s, vy:.35+Math.random()*.8, sway:.5+Math.random(), ph:Math.random()*Math.PI*2, a:.2+Math.random()*.5, rot:(Math.random()-.5)*.6, c:Math.random()<.7?'#e75480':'#ff8fb3' }; }
 function makePetal(init){ const s=4+Math.random()*6; return { x:Math.random()*HW, y: init?Math.random()*HH : -s-Math.random()*HH*.5, s, vy:.4+Math.random()*.9, sway:.7+Math.random()*1.2, ph:Math.random()*Math.PI*2, a:.25+Math.random()*.5, rot:Math.random()*Math.PI, vr:(Math.random()-.5)*.02, c:'#ffc7d6' }; }
 function drawHeart(x,y,s,c,a,rot){ ctx.save(); ctx.translate(x,y); ctx.rotate(rot); ctx.globalAlpha=a; ctx.fillStyle=c; ctx.beginPath();
   ctx.moveTo(0,s*.3); ctx.bezierCurveTo(0,0,-s*.5,0,-s*.5,-s*.35); ctx.bezierCurveTo(-s*.5,-s*.6,-s*.15,-s*.75,0,-s*.45);
   ctx.bezierCurveTo(s*.15,-s*.75,s*.5,-s*.6,s*.5,-s*.35); ctx.bezierCurveTo(s*.5,0,0,0,0,s*.3); ctx.closePath(); ctx.fill(); ctx.restore(); }
 function drawPetal(x,y,s,c,a,rot){ ctx.save(); ctx.translate(x,y); ctx.rotate(rot); ctx.globalAlpha=a; ctx.fillStyle=c; ctx.beginPath(); ctx.ellipse(0,0,s,s*.55,0,0,Math.PI*2); ctx.fill(); ctx.restore(); }
-function particlesInit(){ canvasResize(); hearts=[]; petals=[]; for(let i=0;i<22;i++) hearts.push(makeHeart(true)); for(let i=0;i<26;i++) petals.push(makePetal(true)); }
+function particlesInit(){ canvasResize(); hearts=[]; petals=[]; for(let i=0;i<32;i++) hearts.push(makeHeart(true)); for(let i=0;i<44;i++) petals.push(makePetal(true)); }
 function particlesLoop(){ ctx.clearRect(0,0,HW,HH); const t=Date.now()/1000;
   for(const p of hearts){ p.y+=p.vy; p.x+=Math.sin(t*p.sway+p.ph)*.5; if(p.y>HH+p.s) Object.assign(p, makeHeart(false)); drawHeart(p.x,p.y,p.s,p.c,p.a,p.rot); }
   for(const p of petals){ p.y+=p.vy; p.x+=Math.sin(t*p.sway+p.ph)*.6; p.rot+=p.vr; if(p.y>HH+p.s) Object.assign(p, makePetal(false)); drawPetal(p.x,p.y,p.s,p.c,p.a,p.rot); }
   requestAnimationFrame(particlesLoop); }
 particlesInit(); particlesLoop();
 window.addEventListener('resize', particlesInit);
+window.addEventListener('orientationchange', particlesInit);
+window.addEventListener('load', particlesInit);
 
 /* ---------- 图片压缩 ---------- */
 function fileToDataURL(file, maxW, q){
